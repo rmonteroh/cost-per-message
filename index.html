@@ -68,6 +68,12 @@
         width: 150px;
         font-size: 1em;
       }
+      .token-help {
+        font-size: 0.8em;
+        color: #777;
+        margin-top: 3px;
+        font-style: italic;
+      }
       table {
         width: 100%;
         border-collapse: collapse;
@@ -115,10 +121,12 @@
         <div class="input-group">
           <label for="inputTokens">Tokens de Entrada (Input)</label>
           <input type="number" id="inputTokens" value="100" min="0" />
+          <span class="token-help" id="inputHelp">~75 palabras</span>
         </div>
         <div class="input-group">
           <label for="outputTokens">Tokens de Salida (Output)</label>
           <input type="number" id="outputTokens" value="160" min="0" />
+          <span class="token-help" id="outputHelp">~120 palabras</span>
         </div>
       </div>
 
@@ -177,12 +185,24 @@
       // --- Elementos del DOM ---
       const inputTokensEl = document.getElementById("inputTokens");
       const outputTokensEl = document.getElementById("outputTokens");
+      const inputHelpEl = document.getElementById("inputHelp");
+      const outputHelpEl = document.getElementById("outputHelp");
       const tableBody = document.querySelector("#resultsTable tbody");
+
+      // --- Función para actualizar el texto de ayuda ---
+      function updateTokenHelp(tokens, helpElement) {
+        const words = Math.round(tokens * 0.75);
+        helpElement.textContent = `~${words} palabras`;
+      }
 
       // --- Función Principal de Cálculo y Renderizado ---
       function calculateAndRender() {
         const inputTokens = parseInt(inputTokensEl.value) || 0;
         const outputTokens = parseInt(outputTokensEl.value) || 0;
+
+        // Actualizar mensajes de ayuda
+        updateTokenHelp(inputTokens, inputHelpEl);
+        updateTokenHelp(outputTokens, outputHelpEl);
 
         // Limpiar la tabla antes de renderizar
         tableBody.innerHTML = "";
