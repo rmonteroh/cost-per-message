@@ -109,6 +109,105 @@
         font-family: monospace;
         text-align: right;
       }
+      .config-section {
+        border-top: 1px solid var(--border-color);
+        background-color: #fafafa;
+      }
+      .config-header {
+        padding: 15px 20px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        user-select: none;
+      }
+      .config-header:hover {
+        background-color: #f0f0f0;
+      }
+      .config-title {
+        font-weight: 600;
+        color: var(--primary-color);
+      }
+      .config-toggle {
+        font-size: 1.2em;
+        transition: transform 0.3s;
+      }
+      .config-toggle.open {
+        transform: rotate(180deg);
+      }
+      .config-content {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease-out;
+      }
+      .config-content.open {
+        max-height: 2000px;
+      }
+      .config-grid {
+        padding: 20px;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 15px;
+      }
+      .model-config {
+        padding: 15px;
+        background-color: white;
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+      }
+      .model-config h4 {
+        margin: 0 0 10px 0;
+        color: #333;
+        font-size: 0.95em;
+      }
+      .price-inputs {
+        display: flex;
+        gap: 10px;
+      }
+      .price-input-group {
+        flex: 1;
+      }
+      .price-input-group label {
+        font-size: 0.75em;
+        display: block;
+        margin-bottom: 3px;
+      }
+      .price-input-group input {
+        width: 100%;
+        padding: 6px 8px;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        font-size: 0.9em;
+      }
+      .config-actions {
+        padding: 15px 20px;
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+        border-top: 1px solid var(--border-color);
+      }
+      .btn {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 0.9em;
+        transition: background-color 0.2s;
+      }
+      .btn-primary {
+        background-color: var(--primary-color);
+        color: white;
+      }
+      .btn-primary:hover {
+        background-color: var(--primary-hover);
+      }
+      .btn-secondary {
+        background-color: #6c757d;
+        color: white;
+      }
+      .btn-secondary:hover {
+        background-color: #5a6268;
+      }
     </style>
   </head>
   <body>
@@ -144,11 +243,27 @@
           <tbody></tbody>
         </table>
       </div>
+
+      <div class="config-section">
+        <div class="config-header" id="configHeader">
+          <span class="config-title">⚙️ Configuración de Precios</span>
+          <span class="config-toggle">▼</span>
+        </div>
+        <div class="config-content" id="configContent">
+          <div class="config-grid" id="configGrid">
+            <!-- Price inputs will be generated dynamically -->
+          </div>
+          <div class="config-actions">
+            <button class="btn btn-secondary" id="resetBtn">Restablecer Valores Predeterminados</button>
+            <button class="btn btn-primary" id="saveBtn">Guardar y Actualizar</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <script>
-      // --- Base de Datos de Modelos y Precios (por millón de tokens) ---
-      const models = [
+      // --- Precios Predeterminados (por millón de tokens) ---
+      const defaultPrices = [
         {
           name: "Claude Opus 4.1 (Anthropic)",
           inputPrice: 15.0,
@@ -182,12 +297,20 @@
         { name: "GPT-5 nano (OpenAI)", inputPrice: 0.05, outputPrice: 0.4 },
       ];
 
+      // --- Cargar precios desde localStorage o usar valores predeterminados ---
+      let models = JSON.parse(localStorage.getItem("llmPrices")) || JSON.parse(JSON.stringify(defaultPrices));
+
       // --- Elementos del DOM ---
       const inputTokensEl = document.getElementById("inputTokens");
       const outputTokensEl = document.getElementById("outputTokens");
       const inputHelpEl = document.getElementById("inputHelp");
       const outputHelpEl = document.getElementById("outputHelp");
       const tableBody = document.querySelector("#resultsTable tbody");
+      const configHeader = document.getElementById("configHeader");
+      const configContent = document.getElementById("configContent");
+      const configGrid = document.getElementById("configGrid");
+      const saveBtn = document.getElementById("saveBtn");
+      const resetBtn = document.getElementById("resetBtn");
 
       // --- Función para actualizar el texto de ayuda ---
       function updateTokenHelp(tokens, helpElement) {
@@ -241,12 +364,79 @@
         });
       }
 
+      // --- Función para generar los inputs de configuración ---
+      function generateConfigInputs() {
+        configGrid.innerHTML = "";
+        models.forEach((model, index) => {
+          const modelDiv = document.createElement("div");
+          modelDiv.className = "model-config";
+          modelDiv.innerHTML = `
+            <h4>${model.name}</h4>
+            <div class="price-inputs">
+              <div class="price-input-group">
+                <label>Input ($/1M tokens)</label>
+                <input type="number" step="0.01" min="0"
+                       data-index="${index}"
+                       data-field="inputPrice"
+                       value="${model.inputPrice}" />
+              </div>
+              <div class="price-input-group">
+                <label>Output ($/1M tokens)</label>
+                <input type="number" step="0.01" min="0"
+                       data-index="${index}"
+                       data-field="outputPrice"
+                       value="${model.outputPrice}" />
+              </div>
+            </div>
+          `;
+          configGrid.appendChild(modelDiv);
+        });
+      }
+
+      // --- Función para guardar precios actualizados ---
+      function savePrices() {
+        const inputs = configGrid.querySelectorAll("input");
+        inputs.forEach((input) => {
+          const index = parseInt(input.dataset.index);
+          const field = input.dataset.field;
+          const value = parseFloat(input.value) || 0;
+          models[index][field] = value;
+        });
+        localStorage.setItem("llmPrices", JSON.stringify(models));
+        calculateAndRender();
+        alert("Precios actualizados correctamente");
+      }
+
+      // --- Función para restablecer precios predeterminados ---
+      function resetPrices() {
+        if (confirm("¿Estás seguro de que quieres restablecer todos los precios a sus valores predeterminados?")) {
+          models = JSON.parse(JSON.stringify(defaultPrices));
+          localStorage.setItem("llmPrices", JSON.stringify(models));
+          generateConfigInputs();
+          calculateAndRender();
+          alert("Precios restablecidos a valores predeterminados");
+        }
+      }
+
+      // --- Función para toggle del panel de configuración ---
+      function toggleConfig() {
+        const toggle = configHeader.querySelector(".config-toggle");
+        configContent.classList.toggle("open");
+        toggle.classList.toggle("open");
+      }
+
       // --- Event Listeners ---
       inputTokensEl.addEventListener("input", calculateAndRender);
       outputTokensEl.addEventListener("input", calculateAndRender);
+      configHeader.addEventListener("click", toggleConfig);
+      saveBtn.addEventListener("click", savePrices);
+      resetBtn.addEventListener("click", resetPrices);
 
       // --- Carga Inicial ---
-      document.addEventListener("DOMContentLoaded", calculateAndRender);
+      document.addEventListener("DOMContentLoaded", () => {
+        generateConfigInputs();
+        calculateAndRender();
+      });
     </script>
   </body>
 </html>
