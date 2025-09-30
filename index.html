@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Calculadora de Costos de LLMs</title>
+    <style>
+      :root {
+        --bg-color: #f4f7f9;
+        --text-color: #333;
+        --header-bg: #ffffff;
+        --border-color: #e0e0e0;
+        --primary-color: #007bff;
+        --primary-hover: #0056b3;
+        --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Helvetica, Arial, sans-serif;
+        --box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      }
+      body {
+        font-family: var(--font-family);
+        background-color: var(--bg-color);
+        color: var(--text-color);
+        margin: 0;
+        padding: 20px;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+      }
+      .container {
+        width: 100%;
+        max-width: 900px;
+        background-color: var(--header-bg);
+        border-radius: 10px;
+        box-shadow: var(--box-shadow);
+        overflow: hidden;
+      }
+      header {
+        padding: 20px;
+        text-align: center;
+        border-bottom: 1px solid var(--border-color);
+      }
+      h1 {
+        margin: 0;
+        color: var(--primary-color);
+      }
+      .controls {
+        display: flex;
+        justify-content: center;
+        gap: 20px;
+        padding: 20px;
+        background-color: #fafafa;
+        border-bottom: 1px solid var(--border-color);
+        flex-wrap: wrap;
+      }
+      .input-group {
+        display: flex;
+        flex-direction: column;
+      }
+      label {
+        font-size: 0.9em;
+        margin-bottom: 5px;
+        color: #555;
+      }
+      input[type="number"] {
+        padding: 8px 12px;
+        border-radius: 5px;
+        border: 1px solid var(--border-color);
+        width: 150px;
+        font-size: 1em;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        padding: 12px 15px;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+      }
+      th {
+        background-color: #f2f2f2;
+        font-weight: 600;
+      }
+      tr:last-child td {
+        border-bottom: none;
+      }
+      tr:hover {
+        background-color: #f9f9f9;
+      }
+      .classification-high {
+        font-weight: bold;
+        color: #d9534f;
+      }
+      .classification-eco {
+        font-weight: bold;
+        color: #5cb85c;
+      }
+      td:nth-child(1) {
+        font-weight: 500;
+      }
+      td:not(:first-child) {
+        font-family: monospace;
+        text-align: right;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>📊 Calculadora de Costos de LLMs</h1>
+      </header>
+
+      <div class="controls">
+        <div class="input-group">
+          <label for="inputTokens">Tokens de Entrada (Input)</label>
+          <input type="number" id="inputTokens" value="100" min="0" />
+        </div>
+        <div class="input-group">
+          <label for="outputTokens">Tokens de Salida (Output)</label>
+          <input type="number" id="outputTokens" value="160" min="0" />
+        </div>
+      </div>
+
+      <div class="table-container">
+        <table id="resultsTable">
+          <thead>
+            <tr>
+              <th>Modelo (Proveedor)</th>
+              <th>Clasificación</th>
+              <th>Costo x1 Mensaje</th>
+              <th>Costo x3 Mensajes</th>
+              <th>Costo x10 Mensajes</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <script>
+      // --- Base de Datos de Modelos y Precios (por millón de tokens) ---
+      const models = [
+        {
+          name: "Claude Opus 4.1 (Anthropic)",
+          inputPrice: 15.0,
+          outputPrice: 75.0,
+        },
+        {
+          name: "Claude Sonnet 4.5 / 4 (Anthropic)",
+          inputPrice: 3.0,
+          outputPrice: 15.0,
+        },
+        { name: "GPT-4.1 (OpenAI)", inputPrice: 2.0, outputPrice: 8.0 },
+        { name: "GPT-5 (OpenAI)", inputPrice: 1.25, outputPrice: 10.0 },
+        {
+          name: "Gemini 2.5 Pro (Google)",
+          inputPrice: 1.25,
+          outputPrice: 10.0,
+        },
+        {
+          name: "Gemini 2.5 Flash GA (Google)",
+          inputPrice: 0.3,
+          outputPrice: 2.5,
+        },
+        { name: "GPT-4.1 mini (OpenAI)", inputPrice: 0.4, outputPrice: 1.6 },
+        { name: "GPT-5 mini (OpenAI)", inputPrice: 0.25, outputPrice: 2.0 },
+        { name: "GPT-4.1 nano (OpenAI)", inputPrice: 0.1, outputPrice: 0.4 },
+        {
+          name: "Gemini 2.5 Flash Lite (Google)",
+          inputPrice: 0.1,
+          outputPrice: 0.4,
+        },
+        { name: "GPT-5 nano (OpenAI)", inputPrice: 0.05, outputPrice: 0.4 },
+      ];
+
+      // --- Elementos del DOM ---
+      const inputTokensEl = document.getElementById("inputTokens");
+      const outputTokensEl = document.getElementById("outputTokens");
+      const tableBody = document.querySelector("#resultsTable tbody");
+
+      // --- Función Principal de Cálculo y Renderizado ---
+      function calculateAndRender() {
+        const inputTokens = parseInt(inputTokensEl.value) || 0;
+        const outputTokens = parseInt(outputTokensEl.value) || 0;
+
+        // Limpiar la tabla antes de renderizar
+        tableBody.innerHTML = "";
+
+        const calculatedModels = models.map((model) => {
+          const costPerMessage =
+            (inputTokens / 1000000) * model.inputPrice +
+            (outputTokens / 1000000) * model.outputPrice;
+          return {
+            ...model,
+            cost1: costPerMessage,
+            cost3: costPerMessage * 3,
+            cost10: costPerMessage * 10,
+          };
+        });
+
+        // Ordenar modelos del más caro al más barato
+        calculatedModels.sort((a, b) => b.cost1 - a.cost1);
+
+        // Renderizar cada fila en la tabla
+        calculatedModels.forEach((model) => {
+          const classification =
+            model.cost1 > 0.001 ? "Gama Alta" : "Económico";
+          const classificationClass =
+            model.cost1 > 0.001 ? "classification-high" : "classification-eco";
+
+          const row = document.createElement("tr");
+          row.innerHTML = `
+                <td>${model.name}</td>
+                <td class="${classificationClass}">${classification}</td>
+                <td>$${model.cost1.toFixed(6)}</td>
+                <td>$${model.cost3.toFixed(6)}</td>
+                <td>$${model.cost10.toFixed(6)}</td>
+            `;
+          tableBody.appendChild(row);
+        });
+      }
+
+      // --- Event Listeners ---
+      inputTokensEl.addEventListener("input", calculateAndRender);
+      outputTokensEl.addEventListener("input", calculateAndRender);
+
+      // --- Carga Inicial ---
+      document.addEventListener("DOMContentLoaded", calculateAndRender);
+    </script>
+  </body>
+</html>
