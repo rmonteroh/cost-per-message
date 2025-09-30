@@ -30,6 +30,21 @@ This is a single-page LLM cost calculator application built with vanilla HTML, C
 
 Open `index.html` directly in a web browser. No build step or server required.
 
+## Deployment
+
+### GitHub Pages
+
+The site is configured to deploy via GitHub Pages from the `main` branch root directory.
+
+**Initial Setup:**
+1. Go to repository Settings → Pages
+2. Set Source to "Deploy from a branch"
+3. Select branch: `main` and folder: `/ (root)`
+4. Save
+
+**Deploying Updates:**
+Simply push changes to the `main` branch. GitHub Pages will automatically redeploy.
+
 ## Making Changes
 
 When updating model pricing:
