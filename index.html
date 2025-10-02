@@ -52,6 +52,19 @@
         border-bottom: 1px solid var(--border-color);
         flex-wrap: wrap;
       }
+      .mode-selector {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      select {
+        padding: 8px 12px;
+        border-radius: 5px;
+        border: 1px solid var(--border-color);
+        font-size: 1em;
+        background-color: white;
+        cursor: pointer;
+      }
       .input-group {
         display: flex;
         flex-direction: column;
@@ -217,15 +230,22 @@
       </header>
 
       <div class="controls">
-        <div class="input-group">
-          <label for="inputTokens">Tokens de Entrada (Input)</label>
-          <input type="number" id="inputTokens" value="100" min="0" />
-          <span class="token-help" id="inputHelp">~75 palabras</span>
+        <div class="mode-selector">
+          <label for="inputMode">Modo de Entrada:</label>
+          <select id="inputMode">
+            <option value="words">Palabras</option>
+            <option value="tokens">Tokens</option>
+          </select>
         </div>
         <div class="input-group">
-          <label for="outputTokens">Tokens de Salida (Output)</label>
-          <input type="number" id="outputTokens" value="160" min="0" />
-          <span class="token-help" id="outputHelp">~120 palabras</span>
+          <label for="inputTokens" id="inputLabel">Palabras de Entrada (Input)</label>
+          <input type="number" id="inputTokens" value="75" min="0" />
+          <span class="token-help" id="inputHelp">~100 tokens</span>
+        </div>
+        <div class="input-group">
+          <label for="outputTokens" id="outputLabel">Palabras de Salida (Output)</label>
+          <input type="number" id="outputTokens" value="120" min="0" />
+          <span class="token-help" id="outputHelp">~160 tokens</span>
         </div>
       </div>
 
@@ -301,8 +321,11 @@
       let models = JSON.parse(localStorage.getItem("llmPrices")) || JSON.parse(JSON.stringify(defaultPrices));
 
       // --- Elementos del DOM ---
+      const inputModeEl = document.getElementById("inputMode");
       const inputTokensEl = document.getElementById("inputTokens");
       const outputTokensEl = document.getElementById("outputTokens");
+      const inputLabelEl = document.getElementById("inputLabel");
+      const outputLabelEl = document.getElementById("outputLabel");
       const inputHelpEl = document.getElementById("inputHelp");
       const outputHelpEl = document.getElementById("outputHelp");
       const tableBody = document.querySelector("#resultsTable tbody");
@@ -312,20 +335,51 @@
       const saveBtn = document.getElementById("saveBtn");
       const resetBtn = document.getElementById("resetBtn");
 
+      // --- Función para obtener tokens (convierte si es necesario) ---
+      function getTokenValue(inputValue, mode) {
+        if (mode === "words") {
+          // Convertir palabras a tokens (1 palabra ≈ 1.33 tokens)
+          return Math.round(inputValue / 0.75);
+        }
+        return inputValue;
+      }
+
       // --- Función para actualizar el texto de ayuda ---
-      function updateTokenHelp(tokens, helpElement) {
-        const words = Math.round(tokens * 0.75);
-        helpElement.textContent = `~${words} palabras`;
+      function updateTokenHelp(inputValue, helpElement, mode) {
+        if (mode === "tokens") {
+          const words = Math.round(inputValue * 0.75);
+          helpElement.textContent = `~${words} palabras`;
+        } else {
+          const tokens = Math.round(inputValue / 0.75);
+          helpElement.textContent = `~${tokens} tokens`;
+        }
+      }
+
+      // --- Función para actualizar las etiquetas según el modo ---
+      function updateLabels() {
+        const mode = inputModeEl.value;
+        if (mode === "words") {
+          inputLabelEl.textContent = "Palabras de Entrada (Input)";
+          outputLabelEl.textContent = "Palabras de Salida (Output)";
+        } else {
+          inputLabelEl.textContent = "Tokens de Entrada (Input)";
+          outputLabelEl.textContent = "Tokens de Salida (Output)";
+        }
       }
 
       // --- Función Principal de Cálculo y Renderizado ---
       function calculateAndRender() {
-        const inputTokens = parseInt(inputTokensEl.value) || 0;
-        const outputTokens = parseInt(outputTokensEl.value) || 0;
+        const mode = inputModeEl.value;
+        const inputValue = parseInt(inputTokensEl.value) || 0;
+        const outputValue = parseInt(outputTokensEl.value) || 0;
+
+        // Convertir a tokens si es necesario
+        const inputTokens = getTokenValue(inputValue, mode);
+        const outputTokens = getTokenValue(outputValue, mode);
 
         // Actualizar mensajes de ayuda
-        updateTokenHelp(inputTokens, inputHelpEl);
-        updateTokenHelp(outputTokens, outputHelpEl);
+        updateTokenHelp(inputValue, inputHelpEl, mode);
+        updateTokenHelp(outputValue, outputHelpEl, mode);
 
         // Limpiar la tabla antes de renderizar
         tableBody.innerHTML = "";
@@ -426,6 +480,10 @@
       }
 
       // --- Event Listeners ---
+      inputModeEl.addEventListener("change", () => {
+        updateLabels();
+        calculateAndRender();
+      });
       inputTokensEl.addEventListener("input", calculateAndRender);
       outputTokensEl.addEventListener("input", calculateAndRender);
       configHeader.addEventListener("click", toggleConfig);
